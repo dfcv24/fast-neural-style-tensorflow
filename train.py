@@ -13,7 +13,7 @@ import os
 import argparse
 
 slim = tf.contrib.slim
-
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -26,9 +26,9 @@ def main(FLAGS):
     training_path = os.path.join(FLAGS.model_path, FLAGS.naming)
     if not(os.path.exists(training_path)):
         os.makedirs(training_path)
-
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5)
     with tf.Graph().as_default():
-        with tf.Session() as sess:
+        with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
             """Build Network"""
             network_fn = nets_factory.get_network_fn(
                 FLAGS.loss_model,
@@ -58,23 +58,23 @@ def main(FLAGS):
             loss = FLAGS.style_weight * style_loss + FLAGS.content_weight * content_loss + FLAGS.tv_weight * tv_loss
 
             """Add Summary"""
-            tf.scalar_summary('losses/content loss', content_loss)
-            tf.scalar_summary('losses/style loss', style_loss)
-            tf.scalar_summary('losses/regularizer loss', tv_loss)
+            tf.summary.scalar('losses/content_loss', content_loss)
+            tf.summary.scalar('losses/style_loss', style_loss)
+            tf.summary.scalar('losses/regularizer_loss', tv_loss)
 
-            tf.scalar_summary('weighted_losses/weighted content loss', content_loss * FLAGS.content_weight)
-            tf.scalar_summary('weighted_losses/weighted style loss', style_loss * FLAGS.style_weight)
-            tf.scalar_summary('weighted_losses/weighted regularizer loss', tv_loss * FLAGS.tv_weight)
-            tf.scalar_summary('total loss', loss)
+            tf.summary.scalar('weighted_losses/weighted_content_loss', content_loss * FLAGS.content_weight)
+            tf.summary.scalar('weighted_losses/weighted_style_loss', style_loss * FLAGS.style_weight)
+            tf.summary.scalar('weighted_losses/weighted_regularizer_loss', tv_loss * FLAGS.tv_weight)
+            tf.summary.scalar('total_loss', loss)
             for layer in FLAGS.style_layers:
-                tf.scalar_summary('style_losses/' + layer, style_loss_summary[layer])
-            tf.image_summary('generated', generated)
+                tf.summary.scalar('style_losses/' + layer, style_loss_summary[layer])
+            tf.summary.image('generated', generated)
             # tf.image_summary('processed_generated', processed_generated)  # May be better?
-            tf.image_summary('origin', tf.pack([
+            tf.summary.image('origin', tf.pack([
                 image_unprocessing_fn(image) for image in tf.unpack(processed_images, axis=0, num=FLAGS.batch_size)
             ]))
-            summary = tf.merge_all_summaries()
-            writer = tf.train.SummaryWriter(training_path)
+            summary = tf.summary.merge_all()
+            writer = tf.summary.FileWriter(training_path)
 
             """Prepare to Train"""
             global_step = tf.Variable(0, name="global_step", trainable=False)
@@ -86,11 +86,11 @@ def main(FLAGS):
             train_op = tf.train.AdamOptimizer(1e-3).minimize(loss, global_step=global_step, var_list=variable_to_train)
 
             variables_to_restore = []
-            for v in tf.all_variables():
+            for v in tf.global_variables():
                 if not(v.name.startswith(FLAGS.loss_model)):
                     variables_to_restore.append(v)
             saver = tf.train.Saver(variables_to_restore)
-            sess.run([tf.initialize_all_variables(), tf.initialize_local_variables()])
+            sess.run([tf.global_variables_initializer(), tf.local_variables_initializer()])
             init_func = utils._get_init_fn(FLAGS)
             init_func(sess)
             last_file = tf.train.latest_checkpoint(training_path)

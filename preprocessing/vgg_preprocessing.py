@@ -389,4 +389,5 @@ def preprocess_image(image, output_height, output_width, is_training=False,
 
 
 def unprocess_image(image):
+    image = tf.to_float(image)
     return _mean_image_add(image, [_R_MEAN, _G_MEAN, _B_MEAN])

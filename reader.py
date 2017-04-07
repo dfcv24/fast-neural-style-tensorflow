@@ -4,11 +4,16 @@ import tensorflow as tf
 
 
 def get_image(path, height, width, preprocess_fn):
-    png = path.lower().endswith('png')
+    #png = path.lower().endswith('png')
     img_bytes = tf.read_file(path)
-    image = tf.image.decode_png(img_bytes, channels=3) if png else tf.image.decode_jpeg(img_bytes, channels=3)
+    image = tf.image.decode_jpeg(img_bytes, channels=3)
     return preprocess_fn(image, height, width)
 
+def read_image(path, preprocess_fn):
+    #png = path.lower().endswith('png')
+    img_bytes = tf.read_file(path)
+    image = tf.image.decode_jpeg(img_bytes, channels=3)
+    return preprocess_fn(image)
 
 def image(batch_size, height, width, path, preprocess_fn, epochs=2, shuffle=True):
     filenames = [join(path, f) for f in listdir(path) if isfile(join(path, f))]
